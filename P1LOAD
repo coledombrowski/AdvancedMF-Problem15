@@ -1,0 +1,162 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID.  P1LOAD.
+       AUTHOR. DOMBROWSKI.
+
+       ENVIRONMENT DIVISION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+
+           SELECT STUDENT-FILE         ASSIGN TO 'STUDENTS'.
+
+           SELECT MAJOR-FILE           ASSIGN TO 'MAJORS'.
+
+           SELECT MAJOR-REPORT         ASSIGN TO 'MAJORTAB'.
+
+           SELECT TABLE-REPORT         ASSIGN TO 'STUDENT'.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  STUDENT-FILE    RECORDING MODE IS F.
+       01                         PIC X(80).
+
+       FD  MAJOR-FILE      RECORDING MODE IS F.
+       01                         PIC X(80).
+
+       FD  MAJOR-REPORT    RECORDING MODE IS F.
+       01  PRINT-LINE             PIC X(132).
+
+       FD  TABLE-REPORT    RECORDING MODE IS F.
+       01  TABLE-LINE              PIC X(132).
+
+
+       WORKING-STORAGE SECTION.
+       01  WORKING-VARIABLES.
+           05  EOF-STUDENT-WS          PIC X(3)    VALUE 'NO'.
+           05  EOF-MAJOR-WS            PIC X(3)    VALUE 'NO'.
+           05  FOUND-MAJOR-WS          PIC XXX     VALUE 'NO'.
+           05  POINTER-TO-ROW          PIC S9(4)   BINARY.
+           05  SIZE-OF-TABLE           PIC 999     VALUE ZERO.
+
+       01  STUDENT-REC.
+           05  STUDENT-NAME-IN         PIC X(20).
+           05  STUDENT-CODE-IN         PIC X(4).
+           05  FILLER                  PIC X(56).
+
+       01  REPORT-HEADER.
+           05  FILLER                  PIC X(5)    VALUE SPACES.
+           05  FILLER                  PIC X(70)   VALUE
+           'THIS PROGRAM DEMOS READING IN & THEN PRINTING A TABLE'.
+
+       01  COLUMN-HEADER1.
+           05  FILLER                  PIC X     VALUE SPACES.
+           05  FILLER                  PIC X(25)
+                                       VALUE 'STUDENT NAME'.
+           05  FILLER                  PIC X(26)
+                                       VALUE 'STUDENT MAJOR'.
+           05  FILLER                  PIC X(28)
+                                       VALUE 'MAJOR  CODE '.
+
+       01  DETAIL-LINE.
+           05                          PIC X  VALUE SPACES.
+           05  STUDENT-NAME-OUT        PIC X(25).
+           05  STUDENT-MAJOR-OUT       PIC X(31).
+           05  STUDENT-CODE-OUT        PIC X(23).
+
+       01  MAJORS.
+           05  MAJOR-TABLE OCCURS 1 TO 25 TIMES
+                           DEPENDING ON SIZE-OF-TABLE.
+               10  CODE-OF-MAJOR-TAB   PIC X(4).
+               10  NAME-OF-MAJOR-TAB   PIC X(16).
+               10  FILLER              PIC X(60).
+
+       01  MAJOR-LINE.
+           05 FILLER                   PIC X VALUE SPACE.
+           05 MAJOR-CODE-OUT           PIC X(4).
+           05 FILLER                   PIC X(10) VALUE SPACE.
+           05 MAJOR-NAME-OUT           PIC X(16).
+
+       PROCEDURE DIVISION.
+       100-MAINLINE.
+           PERFORM 200-OPEN
+           PERFORM 300-PROCESS UNTIL EOF-STUDENT-WS = 'YES'
+           PERFORM 900-CLOSE
+           STOP RUN.
+
+       200-OPEN.
+           OPEN INPUT  STUDENT-FILE MAJOR-FILE
+                OUTPUT MAJOR-REPORT TABLE-REPORT
+
+           PERFORM 275-LOAD-TABLE
+               VARYING POINTER-TO-ROW
+               FROM 1 BY 1 UNTIL EOF-MAJOR-WS = 'YES'
+
+           PERFORM 500-HEADER
+           PERFORM 250-READ.
+
+       250-READ.
+           READ STUDENT-FILE INTO STUDENT-REC
+              AT END MOVE 'YES' TO EOF-STUDENT-WS
+           END-READ.
+
+       275-LOAD-TABLE.
+           READ MAJOR-FILE INTO  MAJOR-TABLE (POINTER-TO-ROW)
+           AT END      MOVE 'YES'  TO EOF-MAJOR-WS
+           NOT AT END  ADD 1       TO SIZE-OF-TABLE
+           END-READ.
+
+       300-PROCESS.
+
+           MOVE 'NO'   TO FOUND-MAJOR-WS
+           MOVE 1      TO POINTER-TO-ROW
+
+           PERFORM 400-TABLE-LOOKUP UNTIL FOUND-MAJOR-WS = 'YES'
+
+           PERFORM 350-MOVE-AND-WRITE
+           PERFORM 250-READ.
+
+
+       400-TABLE-LOOKUP.
+
+           IF STUDENT-CODE-IN = CODE-OF-MAJOR-TAB (POINTER-TO-ROW)
+               MOVE NAME-OF-MAJOR-TAB (POINTER-TO-ROW)
+                                       TO STUDENT-MAJOR-OUT
+               MOVE STUDENT-CODE-IN    TO STUDENT-CODE-OUT
+               MOVE 'YES'              TO FOUND-MAJOR-WS
+           ELSE
+               ADD 1 TO POINTER-TO-ROW
+           END-IF.
+
+       350-MOVE-AND-WRITE.
+
+           MOVE STUDENT-NAME-IN    TO STUDENT-NAME-OUT
+
+           MOVE DETAIL-LINE        TO PRINT-LINE
+           WRITE PRINT-LINE AFTER 1.
+
+       500-HEADER.
+
+           WRITE PRINT-LINE FROM REPORT-HEADER AFTER PAGE
+           WRITE PRINT-LINE FROM COLUMN-HEADER1 AFTER 3
+           MOVE SPACES TO PRINT-LINE
+           WRITE PRINT-LINE AFTER 2.
+
+       700-LIST-TABLE.
+
+           MOVE CODE-OF-MAJOR-TAB (POINTER-TO-ROW)
+               TO MAJOR-CODE-OUT
+
+           MOVE NAME-OF-MAJOR-TAB (POINTER-TO-ROW)
+               TO MAJOR-NAME-OUT
+
+           WRITE TABLE-LINE FROM MAJOR-LINE AFTER 2.
+
+       900-CLOSE.
+           MOVE SPACES TO TABLE-LINE
+           WRITE TABLE-LINE AFTER PAGE
+
+           PERFORM 700-LIST-TABLE
+               VARYING POINTER-TO-ROW
+                   FROM 1 BY 1 UNTIL POINTER-TO-ROW > SIZE-OF-TABLE
+
+           CLOSE STUDENT-FILE MAJOR-FILE MAJOR-REPORT TABLE-REPORT.

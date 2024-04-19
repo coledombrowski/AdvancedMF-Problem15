@@ -1,0 +1,216 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID.  P4DYNAM.
+       AUTHOR. DOMBROWSKI.
+
+       ENVIRONMENT DIVISION.
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+           SELECT AUDIT-IN-FILE     ASSIGN TO 'MATCHAUD'.
+
+           SELECT VENDOR-IN-FILE    ASSIGN TO 'MATCHVEN'.
+
+           SELECT AUDIT-OUT-FILE    ASSIGN TO 'TABLEAUD'.
+
+           SELECT VENDOR-OUT-FILE   ASSIGN TO 'TABLEVEN'.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  AUDIT-IN-FILE     RECORDING MODE IS F.
+       01  FILLER                 PIC X(80).
+
+       FD  VENDOR-IN-FILE    RECORDING MODE IS F.
+       01  FILLER                 PIC X(80).
+
+       FD  AUDIT-OUT-FILE    RECORDING MODE IS F.
+       01  AUDIT-PRINT-REC        PIC X(132).
+
+       FD  VENDOR-OUT-FILE   RECORDING MODE IS F.
+       01  VENDOR-PRINT-REC       PIC X(132).
+
+       WORKING-STORAGE SECTION.
+
+       01  WORKING-VARIABLES.
+           05  EOF-AUDIT-WS            PIC XXX VALUE 'NO'.
+           05  EOF-VENDOR-WS           PIC XXX VALUE 'NO'.
+           05  POINTER-TO-ROW          PIC 9(4).
+           05  SIZE-OF-TABLE           PIC 999 VALUE ZERO.
+
+       01  AUDIT.
+           05  AUDIT-IN-REC OCCURS 1 TO 25 TIMES
+                           DEPENDING ON SIZE-OF-TABLE.
+               10  AUDIT-NUM-IN        PIC 9(5).
+               10  AUDIT-NAME-IN       PIC X(25).
+               10  AUDIT-AMT-IN        PIC S9(7)V99.
+
+       01  VENDOR-IN-REC.
+           05  STORE-NUM-IN            PIC X(3).
+           05  VEND-NUM-IN             PIC X(5).
+           05  COMPANY-DATA-IN         PIC X(21).
+           05  VEND-AMT-IN             PIC S9(6)V99.
+           05  FILLER                  PIC X(12).
+           05  VEND-DATE-IN.
+               10  MM-IN               PIC 99.
+               10  DD-IN               PIC 99.
+               10  YY-IN               PIC 9999.
+           05  FILLER                  PIC X(23).
+
+       01  HL-VENDOR.
+           05  FILLER                  PIC X(21) VALUE SPACES.
+           05  FILLER                  PIC X(96) VALUE
+               'SELECTION OF VENDOR RECORDS BASED ON AN AUDIT TABLE'.
+
+       01  CH-VENDOR.
+           05  FILLER                  PIC X(10) VALUE  SPACES.
+           05  FILLER                  PIC X(20) VALUE 'VEND-NUMBER'.
+           05  FILLER                  PIC X(35) VALUE 'VEND-NAME'.
+           05  FILLER                  PIC X(20) VALUE 'TRANS-DATE'.
+           05  FILLER                  PIC X(20) VALUE 'TRANS-AMOUNT'.
+
+       01  DETAIL-VENDOR.
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  VEND-NUM-OUT            PIC X(20).
+           05  VEND-NAME-OUT           PIC X(35).
+           05  VEND-DATE-OUT.
+               10  YY-OUT              PIC 9999.
+               10  FILLER              PIC X VALUE '/'.
+               10  MM-OUT              PIC 99.
+               10  FILLER              PIC X VALUE '/'.
+               10  DD-OUT              PIC 99.
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  VEND-AMT-OUT            PIC $ZZZ,ZZZ,ZZ9.99BCR.
+
+       01 HL-AUDIT.
+           05  FILLER                  PIC X(30) VALUE SPACES.
+           05  FILLER                  PIC X(79)
+               VALUE 'LIST OF AUDITED RECORDS'.
+
+       01 CH-AUDIT.
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  FILLER                  PIC X(15) VALUE 'VEND-NUMBER'.
+           05  FILLER                  PIC X(35) VALUE 'VEND-NAME'.
+           05  FILLER                  PIC X(15) VALUE 'CUT-OFF-AMOUNT'.
+
+       01 DETAIL-AUDIT.
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  AUDIT-NUM-OUT           PIC 99999.
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  AUDIT-NAME-OUT          PIC X(25).
+           05  FILLER                  PIC X(10) VALUE SPACES.
+           05  AUDIT-AMT-OUT           PIC $ZZZ,ZZ9.99.
+           05  FILLER                  PIC X(4) VALUE SPACES.
+
+      ****************************************************************
+
+       PROCEDURE DIVISION.
+
+       100-MAINLINE.
+           PERFORM 200-OPEN
+
+           PERFORM 300-PROCESS UNTIL EOF-VENDOR-WS = 'YES'
+
+           PERFORM 900-CLOSE
+
+           STOP RUN.
+      ******************************************************************
+
+       200-OPEN.
+           OPEN INPUT VENDOR-IN-FILE  AUDIT-IN-FILE
+               OUTPUT VENDOR-OUT-FILE AUDIT-OUT-FILE
+
+           WRITE AUDIT-PRINT-REC FROM HL-AUDIT AFTER PAGE
+           WRITE AUDIT-PRINT-REC FROM CH-AUDIT AFTER 3
+           MOVE SPACES TO AUDIT-PRINT-REC
+           WRITE AUDIT-PRINT-REC AFTER 2
+
+           PERFORM 275-LOAD-TABLE
+               VARYING POINTER-TO-ROW
+               FROM 1 BY 1 UNTIL EOF-AUDIT-WS = 'YES'
+           MOVE 1 TO POINTER-TO-ROW
+
+           PERFORM 250-READ-VENDOR
+           PERFORM 500-HEADER.
+      ******************************************************************
+
+       275-LOAD-TABLE.
+           READ AUDIT-IN-FILE INTO AUDIT-IN-REC (POINTER-TO-ROW)
+               AT END MOVE 'YES' TO EOF-AUDIT-WS
+               NOT AT END  ADD 1 TO SIZE-OF-TABLE
+           END-READ.
+      ******************************************************************
+
+       250-READ-VENDOR.
+           READ VENDOR-IN-FILE INTO VENDOR-IN-REC
+               AT END MOVE 'YES' TO EOF-VENDOR-WS
+           END-READ.
+      ******************************************************************
+
+       300-PROCESS.
+
+           IF VEND-NUM-IN < AUDIT-NUM-IN (POINTER-TO-ROW)
+               PERFORM 250-READ-VENDOR
+           ELSE
+               IF VEND-NUM-IN = AUDIT-NUM-IN (POINTER-TO-ROW)
+                   PERFORM 325-PROCESS
+                   PERFORM 250-READ-VENDOR
+               END-IF
+           END-IF
+
+           IF VEND-NUM-IN > AUDIT-NUM-IN (POINTER-TO-ROW)
+               PERFORM 230-NEXT-AUDIT
+           END-IF.
+      ******************************************************************
+
+       325-PROCESS.
+
+           IF VEND-AMT-IN >=  AUDIT-AMT-IN (POINTER-TO-ROW)
+               THEN PERFORM 350-PRINT
+           END-IF.
+      ******************************************************************
+
+       350-PRINT.
+
+           MOVE MM-IN TO MM-OUT
+           MOVE DD-IN TO DD-OUT
+           MOVE YY-IN TO YY-OUT
+
+           MOVE VEND-NUM-IN TO VEND-NUM-OUT
+           MOVE AUDIT-NAME-IN(POINTER-TO-ROW)  TO VEND-NAME-OUT
+
+
+           MOVE VEND-AMT-IN TO VEND-AMT-OUT
+           WRITE VENDOR-PRINT-REC FROM DETAIL-VENDOR AFTER 1.
+      ****************************************************************
+
+       230-NEXT-AUDIT.
+            ADD 1 TO POINTER-TO-ROW
+
+            IF POINTER-TO-ROW > SIZE-OF-TABLE
+               THEN MOVE 'YES' TO EOF-AUDIT-WS
+               ELSE PERFORM 500-HEADER
+            END-IF.
+      ********************************************************************
+
+       500-HEADER.
+           WRITE VENDOR-PRINT-REC FROM HL-VENDOR AFTER PAGE
+           WRITE VENDOR-PRINT-REC FROM CH-VENDOR AFTER 2
+           MOVE SPACES TO VENDOR-PRINT-REC
+           WRITE VENDOR-PRINT-REC AFTER 2.
+      ******************************************************************
+
+       700-AUDIT-REPORT.
+           MOVE AUDIT-NUM-IN (POINTER-TO-ROW)  TO AUDIT-NUM-OUT
+           MOVE AUDIT-NAME-IN (POINTER-TO-ROW) TO AUDIT-NAME-OUT
+           MOVE AUDIT-AMT-IN (POINTER-TO-ROW)  TO AUDIT-AMT-OUT
+
+           WRITE AUDIT-PRINT-REC FROM DETAIL-AUDIT AFTER 1.
+      ***********************************************************************
+
+       900-CLOSE.
+
+           PERFORM 700-AUDIT-REPORT
+               VARYING POINTER-TO-ROW
+               FROM 1 BY 1 UNTIL POINTER-TO-ROW > SIZE-OF-TABLE
+
+           CLOSE VENDOR-IN-FILE AUDIT-IN-FILE
+                 VENDOR-OUT-FILE AUDIT-OUT-FILE.

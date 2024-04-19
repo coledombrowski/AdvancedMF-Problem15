@@ -1,0 +1,115 @@
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID.  P3SEARCH.
+       AUTHOR. DOMBROWSKI.
+
+       ENVIRONMENT DIVISION.
+
+       INPUT-OUTPUT SECTION.
+       FILE-CONTROL.
+
+           SELECT STUDENT-FILE ASSIGN TO 'SEARCH'.
+
+           SELECT MAJOR-REPORT ASSIGN TO 'INDEXALL'.
+
+       DATA DIVISION.
+       FILE SECTION.
+
+       FD  STUDENT-FILE RECORDING MODE IS F.
+       01                              PIC X(80).
+
+       FD  MAJOR-REPORT RECORDING MODE IS F.
+       01  PRINT-LINE                  PIC X(132).
+
+       WORKING-STORAGE SECTION.
+
+       01  WORKING-VARIABLES.
+           05  EOF-STUDENT-WS       PIC X(3)    VALUE 'NO'.
+
+       01  REAL-STUDENT-REC.
+           05  STUDENT-NAME-IN      PIC X(20).
+           05  STUDENT-CODE-IN      PIC X(4).
+           05  FILLER               PIC X(56).
+
+       01  REPORT-HEADER.
+           05  FILLER                  PIC X(5)  VALUE SPACES.
+           05  FILLER                  PIC X(60) VALUE
+               'THIS IS THE STUDENT MAJOR REPORT USING SEARCH ALL'.
+
+       01  COLUMN-HEADER1.
+           05  FILLER                  PIC X(1)     VALUE SPACES.
+           05  FILLER                  PIC X(25)
+                                       VALUE 'STUDENT NAME'.
+           05  FILLER                  PIC X(26)
+                                       VALUE 'STUDENT MAJOR'.
+           05  FILLER                  PIC X(28)
+                                       VALUE 'STUDENT CODE ERRORS'.
+
+       01  DETAIL-LINE.
+           05  FILLER                  PIC X(1)  VALUE SPACES.
+           05  STUDENT-NAME-OUT        PIC X(25).
+           05  STUDENT-MAJOR-OUT       PIC X(31).
+           05  STUDENT-CODE-OUT        PIC X(23).
+
+       01  MAJOR-SETUP.
+           05  FILLER              PIC X(20) VALUE '1100COMPUTING'.
+           05  FILLER              PIC X(20) VALUE '1200ACCOUNTING'.
+           05  FILLER              PIC X(20) VALUE '1300MARKETING'.
+           05  FILLER              PIC X(20) VALUE '1400MANAGEMENT'.
+           05  FILLER              PIC X(20) VALUE '1500FINANCE'.
+           05  FILLER              PIC X(20) VALUE '2000ENGLISH'.
+           05  FILLER              PIC X(20) VALUE '2200HISTORY'.
+           05  FILLER              PIC X(20) VALUE '2400SCIENCE'.
+           05  FILLER              PIC X(20) VALUE '2600DRAMA'.
+           05  FILLER              PIC X(20) VALUE '2800LANGUAGE'.
+
+       01  MAJORS REDEFINES MAJOR-SETUP.
+           05  MAJOR-TABLE  OCCURS 10 TIMES
+                            ASCENDING KEY IS MAJOR-CODE-TAB
+                            INDEXED BY MAJOR-INDEX.
+               10  MAJOR-CODE-TAB  PIC X(4).
+               10  MAJOR-NAME-TAB  PIC X(16).
+
+       PROCEDURE DIVISION.
+       100-MAINLINE SECTION.
+           PERFORM 200-OPEN.
+           PERFORM 300-PROCESS UNTIL EOF-STUDENT-WS = 'YES'.
+           PERFORM 900-CLOSE.
+           STOP RUN.
+
+       200-OPEN SECTION.
+           OPEN INPUT STUDENT-FILE OUTPUT MAJOR-REPORT.
+           PERFORM 500-HEADER.
+           PERFORM 250-READ.
+
+       250-READ SECTION.
+           READ STUDENT-FILE INTO REAL-STUDENT-REC
+              AT END MOVE 'YES' TO EOF-STUDENT-WS
+           END-READ.
+
+       300-PROCESS SECTION.
+           SEARCH ALL MAJOR-TABLE
+               AT END MOVE '**BAD MAJOR CODE**' TO STUDENT-MAJOR-OUT
+                    MOVE STUDENT-CODE-IN  TO STUDENT-CODE-OUT
+
+               WHEN  MAJOR-CODE-TAB (MAJOR-INDEX) = STUDENT-CODE-IN
+                    MOVE MAJOR-NAME-TAB (MAJOR-INDEX)
+                         TO STUDENT-MAJOR-OUT
+                    MOVE SPACES TO STUDENT-CODE-OUT.
+
+           PERFORM 350-MOVE-AND-WRITE.
+
+           PERFORM 250-READ.
+
+       350-MOVE-AND-WRITE SECTION.
+           MOVE  STUDENT-NAME-IN TO STUDENT-NAME-OUT.
+           MOVE  DETAIL-LINE     TO PRINT-LINE.
+           WRITE PRINT-LINE AFTER 1.
+
+       500-HEADER SECTION.
+           WRITE PRINT-LINE FROM REPORT-HEADER AFTER PAGE.
+           WRITE PRINT-LINE FROM COLUMN-HEADER1 AFTER 3.
+           MOVE SPACES TO PRINT-LINE.
+           WRITE PRINT-LINE AFTER 2.
+
+       900-CLOSE SECTION.
+           CLOSE STUDENT-FILE MAJOR-REPORT.
